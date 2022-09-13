@@ -37,6 +37,14 @@ namespace fm //Fast Math
 	{
 		return max(min(x, b), a);
 	}
+
+	template<typename T>
+	void swap(T& a, T&b)
+	{
+		T temp = a;
+		a = b;
+		b = temp;
+	}
 	struct vec2
 	{
 		float x, y;

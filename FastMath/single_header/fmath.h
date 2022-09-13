@@ -565,6 +565,36 @@ namespace fm //Fast Math
 		vec3 xyz = i * s;
 		return { xyz.x, xyz.y, xyz.z,std::cos(a * 0.5f) };
 	}
+
+
+	//Random functions
+	inline uint32_t wang_hash(uint32_t seed)
+	{
+		seed = (seed ^ 61) ^ (seed >> 16);
+		seed *= 9;
+		seed = seed ^ (seed >> 4);
+		seed *= 0x27d4eb2d;
+		seed = seed ^ (seed >> 15);
+		return seed;
+	}
+	inline float wang_hashf(uint32_t seed) // Return value between 0.f amd 1.f
+	{
+		return wang_hash(seed) * (1.0f / 4294967296.0f);
+	}
+
+	inline uint32_t xorshift32(uint32_t* pstate)
+	{
+		// Xorshift algorithm from George Marsaglia's paper
+		uint32_t state = *pstate;
+		state ^= (state << 13);
+		state ^= (state >> 17);
+		state ^= (state << 5);
+		return (*pstate) = state;
+	}
+	inline float xorshift32f(uint32_t* state) // Return value between 0.f amd 1.f
+	{
+		return xorshift32(state) * (1.0f / 4294967296.0f);
+	}
 }
 
 #pragma warning (pop)

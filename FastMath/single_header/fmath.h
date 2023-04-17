@@ -268,7 +268,8 @@ namespace fm //Fast Math
 
 		vec4& operator[](size_t i)
 		{
-			return at(i);
+			assert(i < 4);
+			return *(&x + i);
 		}
 
 		const vec4& operator[](size_t i) const
@@ -555,7 +556,7 @@ namespace fm //Fast Math
 		return result;
 	}
 
-	mat4 look_at(const vec3& eye, const vec3& target, const vec3& up) 
+	inline mat4 look_at(const vec3& eye, const vec3& target, const vec3& up) 
 	{
 		vec3 zaxis = normalize(eye - target);
 		vec3 xaxis = normalize(up.cross(zaxis));

@@ -165,6 +165,12 @@ namespace fm //Fast Math
 			return *(&x + i);
 		}
 
+		const float& operator[](size_t i) const
+		{
+			assert(i < 4);
+			return *(&x + i);
+		}
+
 		vec4 operator - () const { return { -x, -y, -z, -w }; }
 		vec4 operator + (const vec4& i) const { return { x + i.x, y + i.y, z + i.z, w + i.w }; }
 		vec4 operator - (const vec4& i) const { return { x - i.x, y - i.y, z - i.z, w - i.w }; }
@@ -262,6 +268,11 @@ namespace fm //Fast Math
 
 		vec4& operator[](size_t i)
 		{
+			return at(i);
+		}
+
+		const vec4& operator[](size_t i) const
+		{
 			assert(i < 4);
 			return *(&x + i);
 		}
@@ -269,11 +280,13 @@ namespace fm //Fast Math
 
 		mat4 operator*(const mat4& i) const
 		{
+			//OLD SIMD calculation
+			/*
 			__m256 row01 = _mm256_set_ps(y.w, y.z, y.y, y.x, x.w, x.z, x.y, x.x);
 			__m256 row23 = _mm256_set_ps(w.w, w.z, w.y, w.x, z.w, z.z, z.y, z.x);
 
 			//store matrix i in columns 0123
-			__m256 col01 = _mm256_set_ps(i.w.y, i.z.y, i.y.y, i.x.y, i.w.x, i.z.w, i.y.x, i.x.x);
+			__m256 col01 = _mm256_set_ps(i.w.y, i.z.y, i.y.y, i.x.y, i.w.x, i.z.x, i.y.x, i.x.x);
 			__m256 col23 = _mm256_set_ps(i.w.w, i.z.w, i.y.w, i.x.w, i.w.z, i.z.z, i.y.z, i.x.z);
 
 			//also store matrix i in columns 1032
@@ -318,7 +331,31 @@ namespace fm //Fast Math
 					get_m128_together(_mm256_extractf128_ps(index_10a15, 1)),
 				});
 
-			return returnMatrix;
+			return returnMatrix;*/
+
+			//CHATGPT-4 improved SIMD calculations using Intel SSE (Streaming SIMD Extensions) intrinsics
+			__m128 row1 = _mm_loadu_ps(&i.x.x);
+			__m128 row2 = _mm_loadu_ps(&i.y.x);
+			__m128 row3 = _mm_loadu_ps(&i.z.x);
+			__m128 row4 = _mm_loadu_ps(&i.w.x);
+
+			mat4 result;
+
+			for (int j = 0; j < 4; j++)
+			{
+				__m128 brod1 = _mm_set1_ps(this->operator[](j)[0]);
+				__m128 brod2 = _mm_set1_ps(this->operator[](j)[1]);
+				__m128 brod3 = _mm_set1_ps(this->operator[](j)[2]);
+				__m128 brod4 = _mm_set1_ps(this->operator[](j)[3]);
+
+				__m128 row = _mm_add_ps(
+					_mm_add_ps(_mm_mul_ps(brod1, row1), _mm_mul_ps(brod2, row2)),
+					_mm_add_ps(_mm_mul_ps(brod3, row3), _mm_mul_ps(brod4, row4)));
+
+				_mm_storeu_ps(&result[j][0], row);
+			}
+
+			return result;
 		}
 
 		const mat4& operator *= (const mat4& i) { return *this = *this * i; }
@@ -518,6 +555,31 @@ namespace fm //Fast Math
 		return result;
 	}
 
+	mat4 look_at(const vec3& eye, const vec3& target, const vec3& up) 
+	{
+		vec3 zaxis = normalize(eye - target);
+		vec3 xaxis = normalize(up.cross(zaxis));
+		vec3 yaxis = zaxis.cross(xaxis);
+	
+		mat4 view;
+		view[0][0] = xaxis.x;
+		view[1][0] = xaxis.y;
+		view[2][0] = xaxis.z;
+		view[3][0] = -xaxis.dot(eye);
+	
+		view[0][1] = yaxis.x;
+		view[1][1] = yaxis.y;
+		view[2][1] = yaxis.z;
+		view[3][1] = -yaxis.dot(eye);
+	
+		view[0][2] = zaxis.x;
+		view[1][2] = zaxis.y;
+		view[2][2] = zaxis.z;
+		view[3][2] = -zaxis.dot(eye);
+	
+		return view;
+	}
+
 	inline mat3 to_mat3(const quat& q)
 	{
 		mat3 result(1.f);
@@ -547,7 +609,9 @@ namespace fm //Fast Math
 
 	inline mat4 to_mat4(const quat& q)
 	{
-		return mat4(to_mat3(q));
+		mat3 matrix3 = to_mat3(q);
+		mat4 matrix4 = mat4(matrix3);
+		return matrix4;
 	}
 
 	inline quat normalize(const quat& q)
@@ -573,7 +637,6 @@ namespace fm //Fast Math
 		vec3 xyz = i * s;
 		return { xyz.x, xyz.y, xyz.z,std::cos(a * 0.5f) };
 	}
-
 
 	//Random functions
 	inline uint32_t wang_hash(uint32_t seed)

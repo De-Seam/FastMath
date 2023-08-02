@@ -10,7 +10,7 @@
 #pragma warning (disable : 4201) //to avoid nameless struct / union warning.
 namespace fm //Fast Math
 {
-	inline float pi()
+	inline constexpr float pi()
 	{
 		return 3.14159265358979323846f;
 	}
@@ -45,6 +45,41 @@ namespace fm //Fast Math
 		a = b;
 		b = temp;
 	}
+
+	struct ivec2
+	{
+		int x, y;
+
+		ivec2(int x, int y)
+			: x(x), y(y) {}
+		ivec2(const int i)
+			: ivec2(i, i) {}
+		ivec2()
+			: ivec2(0) {}
+		ivec2(const ivec2& i)
+			: ivec2(i.x, i.y) {}
+
+		int& operator[](size_t i)
+		{
+			assert(i < 2);
+			return *(&x + i);
+		}
+
+		ivec2 operator - () const { return { -x, -y }; }
+		ivec2 operator + (const ivec2& i) const { return { x + i.x, y + i.y }; }
+		ivec2 operator - (const ivec2& i) const { return { x - i.x, y - i.y }; }
+		ivec2 operator * (const ivec2& i) const { return { x * i.x, y * i.y }; }
+		ivec2 operator * (const int i) const { return { x * i, y * i }; }
+		ivec2 operator / (const ivec2& i) const { return { x / i.x, y / i.y }; }
+		ivec2 operator / (const int i) const { return { x / i, y / i }; }
+		const ivec2& operator += (const ivec2& i) { return *this = *this + i; }
+		const ivec2& operator -= (const ivec2& i) { return *this = *this - i; }
+		const ivec2& operator *= (const ivec2& i) { return *this = *this * i; }
+		const ivec2& operator *= (const int i) { return *this = *this * i; }
+		const ivec2& operator /= (const ivec2& i) { return *this = *this / i; }
+		const ivec2& operator /= (const int i) { return *this = *this / i; }
+	};
+
 	struct vec2
 	{
 		float x, y;
@@ -91,6 +126,16 @@ namespace fm //Fast Math
 			: vec3(0) {}
 		vec3(const vec3& i)
 			: vec3(i.x, i.y, i.z) {}
+
+		vec3(const __m128 &v) 
+		{
+			_mm_storeu_ps(&x, v);
+		}
+
+		__m128 as_sse() const 
+		{
+			return _mm_set_ps(0.0f, z, y, x);
+		}
 
 		float& operator[](size_t i)
 		{
@@ -158,6 +203,16 @@ namespace fm //Fast Math
 			: vec4(i.x, i.y, i.z, i.w) {}
 		vec4(const vec3& i)
 			: vec4(i.x, i.y, i.z, 0.f) {}
+
+		vec4(const __m128 &v) 
+		{
+			_mm_storeu_ps(&x, v);
+		}
+
+		__m128 as_sse() const 
+		{
+			return _mm_set_ps(w, z, y, x);
+		}
 
 		float& operator[](size_t i)
 		{
@@ -281,59 +336,6 @@ namespace fm //Fast Math
 
 		mat4 operator*(const mat4& i) const
 		{
-			//OLD SIMD calculation
-			/*
-			__m256 row01 = _mm256_set_ps(y.w, y.z, y.y, y.x, x.w, x.z, x.y, x.x);
-			__m256 row23 = _mm256_set_ps(w.w, w.z, w.y, w.x, z.w, z.z, z.y, z.x);
-
-			//store matrix i in columns 0123
-			__m256 col01 = _mm256_set_ps(i.w.y, i.z.y, i.y.y, i.x.y, i.w.x, i.z.x, i.y.x, i.x.x);
-			__m256 col23 = _mm256_set_ps(i.w.w, i.z.w, i.y.w, i.x.w, i.w.z, i.z.z, i.y.z, i.x.z);
-
-			//also store matrix i in columns 1032
-			__m256 col10 = _mm256_permute2f128_ps(col01, col01, 0x01);
-			__m256 col32 = _mm256_permute2f128_ps(col23, col23, 0x01);
-
-			__m256 index_0a5 = _mm256_mul_ps(row01, col01);
-			__m256 index_3a6 = _mm256_mul_ps(row01, col32);
-
-			__m256 index_9a12 = _mm256_mul_ps(row23, col10);
-			__m256 index_8a13 = _mm256_mul_ps(row23, col01);
-
-			__m256 index_2a7 = _mm256_mul_ps(row01, col23);
-			__m256 index_1a4 = _mm256_mul_ps(row01, col10);
-
-			__m256 index_11a14 = _mm256_mul_ps(row23, col32);
-			__m256 index_10a15 = _mm256_mul_ps(row23, col23);
-
-			mat4 returnMatrix(
-				{
-					get_m128_together(_mm256_extractf128_ps(index_0a5, 0)),
-					get_m128_together(_mm256_extractf128_ps(index_1a4, 0)),
-					get_m128_together(_mm256_extractf128_ps(index_2a7, 0)),
-					get_m128_together(_mm256_extractf128_ps(index_3a6, 0)),
-				},
-				{
-					get_m128_together(_mm256_extractf128_ps(index_1a4, 1)),
-					get_m128_together(_mm256_extractf128_ps(index_0a5, 1)),
-					get_m128_together(_mm256_extractf128_ps(index_3a6, 1)),
-					get_m128_together(_mm256_extractf128_ps(index_2a7, 1)),
-				},
-				{
-					get_m128_together(_mm256_extractf128_ps(index_8a13, 0)),
-					get_m128_together(_mm256_extractf128_ps(index_9a12, 0)),
-					get_m128_together(_mm256_extractf128_ps(index_10a15, 0)),
-					get_m128_together(_mm256_extractf128_ps(index_11a14, 0)),
-				},
-				{
-					get_m128_together(_mm256_extractf128_ps(index_9a12, 1)),
-					get_m128_together(_mm256_extractf128_ps(index_8a13, 1)),
-					get_m128_together(_mm256_extractf128_ps(index_11a14, 1)),
-					get_m128_together(_mm256_extractf128_ps(index_10a15, 1)),
-				});
-
-			return returnMatrix;*/
-
 			//CHATGPT-4 improved SIMD calculations using Intel SSE (Streaming SIMD Extensions) intrinsics
 			__m128 row1 = _mm_loadu_ps(&i.x.x);
 			__m128 row2 = _mm_loadu_ps(&i.y.x);
@@ -392,6 +394,16 @@ namespace fm //Fast Math
 			z = cr * cp * sy - sr * sp * cy;
 		}
 
+		quat(const __m128 &v) 
+		{
+			_mm_storeu_ps(&x, v);
+		}
+
+		__m128 as_sse() const 
+		{
+			return _mm_set_ps(w, z, y, x);
+		}
+
 		quat(const vec3& i)
 			: quat(i.x, i.y, i.z) {}
 
@@ -401,16 +413,25 @@ namespace fm //Fast Math
 		quat operator * (const float i) const { return { x * i, y * i, z * i, w * i }; }
 		quat operator * (const quat& i) const { return
 			{
-				i.w * i.x + i.x * i.w + i.y * i.z - i.z * i.y,
-				i.w * i.y + i.y * i.w + i.z * i.x - i.x * i.z,
-				i.w * i.z + i.z * i.w + i.x * i.y - i.y * i.x,
-				i.w * i.w - i.x * i.x - i.y * i.y - i.z * i.z
+				w * i.x + x * i.w + y * i.z - z * i.y,
+				w * i.y - x * i.z + y * i.w + z * i.x,
+				w * i.z + x * i.y - y * i.x + z * i.w,
+				w * i.w - x * i.x - y * i.y - z * i.z
 			};
 		}
 		const quat& operator += (const quat& i) { return *this = *this + i; }
 		const quat& operator -= (const quat& i) { return *this = *this - i; }
 		const quat& operator *= (const quat& i) { return *this = *this * i; }
 		const quat& operator *= (const float i) { return *this = *this * i; }
+
+		vec3 rotate(const vec3 &v) const 
+		{
+			quat p(v.x, v.y, v.z, 0);
+			quat q_inv(-x, -y, -z, w);
+			quat result = (*this) * p * q_inv;
+
+			return vec3(result.x, result.y, result.z);
+		}
 
 		vec3 get_euler() const
 		{
@@ -666,6 +687,57 @@ namespace fm //Fast Math
 	inline float xorshift32f(uint32_t* state) // Return value between 0.f amd 1.f
 	{
 		return xorshift32(state) * (1.0f / 4294967296.0f);
+	}
+
+	inline vec2 clamp2(vec2 x, vec2 a, vec2 b)
+	{
+		return 
+		{
+			clamp(x.x, a.x, b.x),
+			clamp(x.y, a.y, b.y)
+		};
+	}
+
+	inline ivec2 clamp2(ivec2 x, ivec2 a, ivec2 b)
+	{
+		return 
+		{
+			clamp(x.x, a.x, b.x),
+			clamp(x.y, a.y, b.y)
+		};
+	}
+
+	inline vec2 max2(vec2 a, vec2 b)
+	{
+		return 
+		{
+			max(a.x, b.x),
+			max(a.y, b.y)
+		};
+	}
+
+	inline vec2 min2(vec2 a, vec2 b)
+	{
+		return
+		{
+			min(a.x, b.x),
+			min(a.y, b.y)
+		};
+	}
+
+	inline float lerp(float a, float b, float t)
+	{
+		return a + (b - a) * t;
+	}
+
+	inline fm::vec2 lerp2(fm::vec2 a, fm::vec2 b, float t)
+	{
+		return a + (b - a) * t;
+	}
+
+	inline fm::vec3 lerp3(fm::vec3 a, fm::vec3 b, float t)
+	{
+		return a + (b - a) * t;
 	}
 }
 
